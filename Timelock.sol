@@ -1,20 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-
-contract TimeLock is ReentrancyGuard {
-    // Contract owner
-    address payable public owner;
-
-    // Time lock variables
+contract SimpleTimeLock {
+    address public owner;
     uint256 public releaseTime;
-    uint256 public lockDuration;
-
-    // Deposit variables
     uint256 public depositAmount;
 
-    event EtherDeposited(address indexed depositor, uint256 amount, uint256 lockDuration);
+    event EtherDeposited(address indexed depositor, uint256 amount, uint256 releaseTime);
     event EtherWithdrawn(address indexed withdrawer, uint256 amount);
 
     modifier onlyOwner() {
@@ -27,32 +19,32 @@ contract TimeLock is ReentrancyGuard {
         _;
     }
 
-    constructor(uint256 _lockDurationInSeconds) {
+    constructor() {
+        owner = msg.sender;
+    }
+
+    function deposit(uint256 _lockDurationInSeconds) external payable onlyOwner {
+        require(msg.value > 0, "Deposit amount must be greater than zero");
         require(_lockDurationInSeconds > 0, "Lock duration must be greater than zero");
 
-        owner = payable(msg.sender);
-        lockDuration = _lockDurationInSeconds;
+        depositAmount = msg.value;
         releaseTime = block.timestamp + _lockDurationInSeconds;
+
+        emit EtherDeposited(msg.sender, msg.value, releaseTime);
     }
 
-    receive() external payable nonReentrant {
-        depositAmount += msg.value;
-
-        emit EtherDeposited(msg.sender, msg.value, lockDuration);
-    }
-
-    function withdraw() external onlyOwner onlyAfter(releaseTime) nonReentrant {
-        require(depositAmount > 0, "No ether to withdraw");
+    function withdraw() external onlyOwner onlyAfter(releaseTime) {
+        require(depositAmount > 0, "No Ether to withdraw");
 
         uint256 amountToWithdraw = depositAmount;
         depositAmount = 0;
 
-        owner.transfer(amountToWithdraw);
+        payable(owner).transfer(amountToWithdraw);
 
         emit EtherWithdrawn(msg.sender, amountToWithdraw);
     }
 
-    function getContractBalance() external view returns (uint256) {
-        return address(this).balance;
+     receive() external payable {
+        // Allow the contract to receive Ether
     }
 }
